@@ -27,7 +27,6 @@ HIGH_VALUE_TITLES = {
     "nlp engineer"
 }
 
-
 def score_candidate(candidate):
     score = 0
 
@@ -49,20 +48,13 @@ def score_candidate(candidate):
         score += 15
 
     for s in skills:
-        skill = s.get("name", "").lower()
-        if skill in HIGH_VALUE_SKILLS:
+        if s.get("name", "").lower() in HIGH_VALUE_SKILLS:
             score += 2
 
     keywords = [
-        "retrieval",
-        "ranking",
-        "recommendation",
-        "semantic search",
-        "embeddings",
-        "vector database",
-        "faiss",
-        "pinecone",
-        "qdrant"
+        "retrieval", "ranking", "recommendation",
+        "semantic search", "embeddings",
+        "vector database", "faiss", "pinecone", "qdrant"
     ]
 
     for job in history:
@@ -98,42 +90,52 @@ if uploaded_file:
     top_candidates = []
     TOP_K = 100
 
-    for line in uploaded_file:
-        candidate = json.loads(line.decode("utf-8"))
+    try:
+        content = uploaded_file.getvalue().decode("utf-8")
 
-        score = score_candidate(candidate)
+        for line in content.splitlines():
 
-        entry = (
-            score,
-            candidate["candidate_id"]
+            if not line.strip():
+                continue
+
+            candidate = json.loads(line)
+
+            score = score_candidate(candidate)
+
+            entry = (
+                score,
+                candidate["candidate_id"]
+            )
+
+            if len(top_candidates) < TOP_K:
+                heapq.heappush(top_candidates, entry)
+            else:
+                heapq.heappushpop(top_candidates, entry)
+
+        top_candidates.sort(reverse=True)
+
+        results = []
+
+        for rank, (score, cid) in enumerate(top_candidates, start=1):
+            results.append({
+                "rank": rank,
+                "candidate_id": cid,
+                "score": round(score, 2)
+            })
+
+        df = pd.DataFrame(results)
+
+        st.subheader("Top Ranked Candidates")
+        st.dataframe(df)
+
+        csv = df.to_csv(index=False).encode("utf-8")
+
+        st.download_button(
+            "Download Ranked CSV",
+            csv,
+            "ranked_candidates.csv",
+            "text/csv"
         )
 
-        if len(top_candidates) < TOP_K:
-            heapq.heappush(top_candidates, entry)
-        else:
-            heapq.heappushpop(top_candidates, entry)
-
-    top_candidates.sort(reverse=True)
-
-    results = []
-
-    for rank, (score, cid) in enumerate(top_candidates, start=1):
-        results.append({
-            "rank": rank,
-            "candidate_id": cid,
-            "score": round(score, 2)
-        })
-
-    df = pd.DataFrame(results)
-
-    st.subheader("Top Ranked Candidates")
-    st.dataframe(df)
-
-    csv = df.to_csv(index=False).encode("utf-8")
-
-    st.download_button(
-        label="Download Ranked CSV",
-        data=csv,
-        file_name="ranked_candidates.csv",
-        mime="text/csv"
-    )
+    except Exception as e:
+        st.error(f"Error processing file: {e}")
